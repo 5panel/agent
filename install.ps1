@@ -27,17 +27,32 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+# Piped through Invoke-Expression, an error would only point at the "iex"
+# on the caller's command line. Name the failing statement instead.
+trap {
+  Write-Host ""
+  Write-Host "install.ps1 failed: $($_.Exception.Message)" -ForegroundColor Red
+  Write-Host ($_.InvocationInfo.PositionMessage) -ForegroundColor DarkGray
+  break
+}
 
 $repo = "5panel/agent"
 $installDir = Join-Path $env:ProgramFiles "FivePanel"
 $configPath = Join-Path $env:ProgramData "FivePanel\config.yaml"
 $exe = Join-Path $installDir "fivepanel-agent.exe"
 
-$arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
-switch ($arch) {
-  "X64" { $goarch = "amd64" }
-  default { throw "unsupported architecture: $arch (releases are built for x64)" }
+# PROCESSOR_ARCHITEW6432 is set when a 32-bit PowerShell runs on 64-bit
+# Windows; PROCESSOR_ARCHITECTURE covers the rest. Both exist on every
+# Windows PowerShell, unlike RuntimeInformation, which is missing on older
+# .NET Framework builds.
+$arch = "$env:PROCESSOR_ARCHITEW6432"
+if (-not $arch) { $arch = "$env:PROCESSOR_ARCHITECTURE" }
+switch ($arch.ToUpper()) {
+  "AMD64" { $goarch = "amd64" }
+  default { throw "unsupported architecture: '$arch' (releases are built for x64)" }
 }
 
 $archive = "fivepanel-agent_windows_$goarch.zip"
@@ -54,9 +69,10 @@ try {
   Invoke-WebRequest -Uri "$base/$archive" -OutFile (Join-Path $tmp $archive) -UseBasicParsing
   Invoke-WebRequest -Uri "$base/checksums.txt" -OutFile (Join-Path $tmp "checksums.txt") -UseBasicParsing
 
-  $expected = (Get-Content (Join-Path $tmp "checksums.txt") | Where-Object { $_ -match "\s$([regex]::Escape($archive))$" }) -replace "\s.*$", ""
-  $actual = (Get-FileHash -Algorithm SHA256 (Join-Path $tmp $archive)).Hash.ToLower()
-  if (-not $expected -or $expected.ToLower() -ne $actual) {
+  $line = Get-Content (Join-Path $tmp "checksums.txt") | Where-Object { $_ -match "\s$([regex]::Escape($archive))$" } | Select-Object -First 1
+  $expected = "$line" -replace "\s.*$", ""
+  $actual = "$((Get-FileHash -Algorithm SHA256 (Join-Path $tmp $archive)).Hash)"
+  if (-not $expected -or $expected.ToLower() -ne $actual.ToLower()) {
     throw "checksum mismatch for $archive"
   }
   Write-Host "checksum ok"
