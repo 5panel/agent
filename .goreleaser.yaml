@@ -1,0 +1,68 @@
+# GoReleaser configuration. `goreleaser release --clean` on a v* tag builds
+# static binaries for every supported platform, archives them, writes
+# checksums.txt and publishes a GitHub release. install.sh / install.ps1
+# download from those assets.
+version: 2
+
+project_name: fivepanel-agent
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: fivepanel-agent
+    main: ./cmd/fivepanel-agent
+    binary: fivepanel-agent
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+      - goos: darwin
+        goarch: amd64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/5panel/agent/internal/version.Version={{ .Version }}
+      - -X github.com/5panel/agent/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/5panel/agent/internal/version.Date={{ .Date }}
+
+archives:
+  - id: default
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - LICENSE
+      - README.md
+      - config.example.yaml
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^chore:"
+      - "^test:"
+
+release:
+  draft: false
+  prerelease: auto

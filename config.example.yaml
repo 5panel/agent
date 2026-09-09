@@ -1,0 +1,61 @@
+# FivePanel agent configuration.
+#
+# Copy to /etc/fivepanel/config.yaml (Linux) or %ProgramData%\FivePanel\config.yaml
+# (Windows), or run `fivepanel-agent setup` to have it written for you.
+# Keep the file private (mode 0600): it holds the token and the database
+# credentials. Every key here can also come from the environment:
+# FIVEPANEL_TOKEN, FIVEPANEL_GATEWAY, DATABASE_URL, DATABASE_TYPE, LOG_LEVEL.
+
+# Connection token from the FivePanel dashboard. One token = one database.
+token: "fp_live_REPLACE_ME"
+
+# Where the agent dials out to. Only change this for staging.
+gateway: "wss://gateway.fivepanel.io/v1/agent"
+
+database:
+  # "mysql" (MySQL and MariaDB) or "mongodb". Inferred from the url when omitted.
+  type: "mysql"
+
+  # MySQL, URL form:    mysql://fivepanel_ro:password@127.0.0.1:3306/qbcore
+  # MySQL, DSN form:    fivepanel_ro:password@tcp(127.0.0.1:3306)/qbcore?charset=utf8mb4
+  # MongoDB:            mongodb://fivepanel_ro:password@127.0.0.1:27017/qbcore?authSource=admin
+  # Use a read-only database user; the agent never needs more.
+  url: "mysql://fivepanel_ro:password@127.0.0.1:3306/qbcore"
+
+  # MongoDB only: database name, when the url does not carry one.
+  # name: "qbcore"
+
+  # Connection pool.
+  max_open_conns: 10
+  max_idle_conns: 5
+  conn_max_lifetime_sec: 300
+
+security:
+  # Refuse every write, whatever the request says. Enforced in this binary.
+  read_only: true
+
+  # Upper bound on a request's timeout, in milliseconds.
+  query_timeout_ms: 3000
+
+  # Upper bound on rows per answer (the gateway has its own cap of 500).
+  max_rows_limit: 500
+
+  # Requests running at once; the rest wait in order.
+  max_concurrent: 4
+
+  # An answer larger than this is not sent.
+  max_result_bytes: 4000000
+
+writes:
+  # Collections a write may touch. Only consulted when read_only is false.
+  # Leave empty to allow nothing.
+  allow: []
+  # allow: ["bans", "player_notes"]
+
+logging:
+  # debug, info, warn or error.
+  level: "info"
+
+  # Log every request with its operation, collection, duration and row count.
+  # Never logs values, the token or the database url.
+  log_queries: false
